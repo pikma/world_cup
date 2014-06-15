@@ -1,17 +1,9 @@
+module FriendlyData (readMatches) where
+
 import Data.List
-import qualified Data.Map as Map
 import Text.Regex.Posix
 
-
-type Team = String
-
-data Match = Match {
-  first_team :: Team,
-  second_team :: Team,
-  first_team_goals :: Int,
-  second_team_goals :: Int,
-  penalty_winner :: Maybe Team
-} deriving (Show)
+import Match
 
 splitWhen :: (a -> Bool) -> [a] -> [[a]]
 splitWhen p l = reverse $ map reverse $ foldl f [] l where
@@ -44,8 +36,6 @@ parseMatch (l1:l2:l3:l4:xs) =
            second_team_goals=second_team_goals, penalty_winner=penalty_winner}
 parseMatch _ = error "Not enough lines in Match string representation"
 
-years = [2014, 2013]
-
 isJunior :: Team -> Bool
 isJunior team = team =~ "U[0-9]{2}"
 
@@ -60,25 +50,8 @@ readMatchesFromLines all_lines =
 
 readMatches :: IO [Match]
 readMatches =
+  let years = [2014, 2013] in
   let files = map (\y -> "friendly_data/" ++ (show y) ++ ".txt") years in
   let contents = mapM readFile files in
   let all_lines = fmap (concat . map lines) contents in
     fmap readMatchesFromLines all_lines
-
-numTeams :: [Match] -> Int
-numTeams matches = length $ nub $ ((map first_team) matches) ++
-                                  ((map second_team) matches)
-
-countPerTeam :: [Match] -> (Match -> Int) -> Map.Map Team Int
-countPerTeam matches count = foldl f Map.empty matches where
-  f map match =
-    let c = count match in Map.insertWith (+) (first_team match) c $
-                           Map.insertWith (+) (second_team match) c map
-
-main = do
-  matches <- readMatches
-  putStrLn $ "Number of matches: " ++ show (length matches)
-  putStrLn $ "Number of teams: " ++ show (numTeams matches)
-  putStrLn $ show $ reverse $ sort $ Map.elems $
-    countPerTeam matches (return 1)
-
