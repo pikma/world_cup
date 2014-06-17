@@ -51,7 +51,7 @@ readMatchesFromLines all_lines =
 readMatches :: IO [Match]
 readMatches =
   let years = [2014, 2013] in
-  let files = map (\y -> "friendly_data/" ++ (show y) ++ ".txt") years in
+  let files = map (\y -> "data/friendly/" ++ (show y) ++ ".txt") years in
   let contents = mapM readFile files in
   let all_lines = fmap (concat . map lines) contents in
     fmap readMatchesFromLines all_lines

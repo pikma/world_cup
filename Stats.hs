@@ -3,6 +3,7 @@ module Stats where
 import qualified Data.Map as Map
 import Data.Monoid
 import Data.List
+import GHC.Real
 
 import Match
 import FriendlyData
@@ -30,6 +31,14 @@ countGoals = countPerTeam f where
   f m = let (g1, g2) = (Sum $ first_team_goals m, Sum $ second_team_goals m) in
         ((g1, g2), (g2, g1))
 
+avgGoals = (Map.map g) . (countPerTeam f) where
+  f m = let (g1, g2) = (first_team_goals m, second_team_goals m) in
+        let gg1 = (Sum g1, Sum 1)
+            gg2 = (Sum g2, Sum 1) in
+          ((gg1, gg2), (gg2, gg1))
+  g ((Sum g1, Sum n1), (Sum g2, Sum n2)) = (ratio g1 n1, ratio g2 n2) where
+    ratio g n = (fromIntegral g) / (fromIntegral n)
+
 printGeneralStats = do
   matches <- readMatches
   putStrLn $ "Number of matches: " ++ show (length matches)
@@ -40,13 +49,19 @@ printGeneralStats = do
   putStrLn "Number of goals scored: "
   putStrLn $ show $ reverse $ sort $ Map.elems $ countScoredGoals matches
 
-printCsv :: (Show a, Show k) => (v -> [a]) -> Map.Map k v -> IO ()
-printCsv vals = mapM_ f . Map.toList where
-  f (k, v) = putStrLn $ intercalate ", " $ (show k):(map show $ vals v)
+mapToCsv :: (Show a) => (v -> [a]) -> [String] -> Map.Map String v -> [String]
+mapToCsv vals headers m =
+  (intercalate "," headers):(map f $ Map.toList m) where
+    f (k, v) = intercalate "," $ k:(map show $ vals v)
 
 main = do
   matches <- readMatches
-  goals_per_team <- return $ countGoals matches
-  printCsv (\(g1, g2) -> map getSum [g1, g2]) goals_per_team
-
+  goals_per_team <- return $ avgGoals matches
+  writeFile "data/goals_per_team.csv" $ unlines $
+      mapToCsv (\(g1, g2) -> [g1, g2])
+               ["team", "avg_goals_scored", "avg_goals_received"]
+               goals_per_team
+  writeFile "data/all_matches.csv" $ unlines $
+      "first_team,second_team,first_team_goals,second_team_goals":
+          (map toCsv matches)
 
