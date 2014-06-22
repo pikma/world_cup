@@ -12,3 +12,7 @@ cabal.config
 
 .RData
 .Rhistory
+*.csv
+*.swp
+*.Rout
+predict_score
