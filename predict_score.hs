@@ -47,8 +47,31 @@ goalsProbability m t1 t2 s =
 lambda :: Double -> Double -> Double -> Double
 lambda min_lambda offense defense = max (offense - defense) min_lambda
 
+data Outcome = FirstWins | SecondWins | Draw deriving Eq
+
+outcome :: Score -> Outcome
+outcome (g1, g2)
+  | g1 > g2   = FirstWins
+  | g1 < g2   = SecondWins
+  | otherwise = Draw
+
+-- The number of points given for predicting the first score when the actual
+-- score is the second. We use Superbru's formula, see:
+-- http://www.superbru.com/worldcup/how_to_play_scoring.php.
 predictionPoints :: Score -> Score -> Double
-predictionPoints predicted final = if predicted == final then 1 else 0  -- FIXME
+predictionPoints predicted final =
+  let winning_points = if outcome predicted == outcome final then 1.0 else 0.0 in
+  let closeness (ge1, ge2) (gf1, gf2) =
+         let gd = abs ((ge1 - ge2) - (gf1 - gf2))
+             gt = abs ((ge1 + ge2) - (gf1 + gf2)) in
+               (fromIntegral gd :: Double) + (fromIntegral gt :: Double) / 2  in
+  let c = closeness predicted final in
+  let margin_points = if c == 0.0      then 1.0
+                      else if c <= 1.0 then 0.75
+                      else if c <= 1.5 then 0.5
+                      else if c <= 2.0 then 0.25
+                      else 0.0
+        in winning_points + margin_points
 
 allScores :: Int -> [Score]
 allScores max_num_goals =
@@ -74,7 +97,6 @@ promptForTeam teams msg = do
   team <- getLine
   if elem team teams then return team
                      else promptForTeam teams "Invalid team. Try again:"
-
 
 main = do
   contents <- readFile "data/poisson_model.csv"
