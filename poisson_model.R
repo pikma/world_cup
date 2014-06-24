@@ -1,4 +1,5 @@
-library(ggplot2)
+# This file trains a model to predict the scores of soccer matches. See the
+# train_model() function for more details.
 
 matches = read.csv("data/all_matches.csv", header=T)
 
@@ -26,10 +27,15 @@ num_matches = length(matches[,1])
 #
 # Returns:
 #   A double l, such that the number of goals is sampled from Poisson(l).
-lambda = function(offense, defense) {
-  0.3 + max(0, offense - defense)
+lambda = function(offense, defense, min_lambda) {
+  min_lambda + max(0, offense - defense)
 }
-default_lambda = lambda(0, 0)
+
+# The minimum lambda value in the model.
+#
+# Arguments:
+#   par: the vector of parameters.
+min_lambda = function(par) { par[2*num_teams + 1] }
 
 # Helper functions that return the offense/defense parameter, in the model,
 # associated with a team.
@@ -54,9 +60,9 @@ defense = function(par, team) { par[num_teams + team] }
 # Returns:
 #   a double.
 score_loss = function(par, team_from, team_to, num_goals) {
-  - dpois(num_goals,
-          lambda=lambda(offense(par, team_from), defense(par, team_to)),
-          log=T)
+  l = lambda(offense(par, team_from), defense(par, team_to),
+             min_lambda(par), log=T)
+  return(- dpois(num_goals, lambda=l))
 }
 
 # The logarithm of the loss function, i.e. -log(P(data|parameters)).
@@ -91,8 +97,8 @@ loss = function(par) {
 # Returns:
 #   a double.
 gradient_increment = function(par, team_from, team_to, num_goals) {
-  l = lambda(offense(par, team_from), defense(par, team_to))
-  if (l == default_lambda) {
+  l = lambda(offense(par, team_from), defense(par, team_to), min_lambda(par))
+  if (l == min_lambda(par)) {
     return(0)
   } else {
     return(num_goals / l - 1)
@@ -132,10 +138,14 @@ gradient = function(par) {
 #
 # Each team i has an offense parameter o_i and a defense parameter d_i. The
 # number of goals scored by team i against team j is assumed to be sampled from
-# a distribution Poisson(c + max(0, o_i - d_j)), where c is a constant (fixed,
-# not learnt).
+# a distribution Poisson(c + max(0, o_i - d_j)), where c is a constant that is
+# part of the model.
 #
 # This function finds the set of parameters that maximizes the data.
+# The parameters are represented as a vector of (2*num_teams + 1) elements,
+# where the first num_teams elements are the offense params of each team, the
+# next num_teams elements are the defense params of each team, and the last
+# element is the constant c.
 #
 # Returns:
 #   A model as returned by the function 'optim'. It is a list with components:
@@ -143,10 +153,6 @@ gradient = function(par) {
 #     value: -log(P(data | parameters)).
 #     (and other things, see ?optim for more details).
 train_model = function () {
-  # The parameters are in a vector where the first num_teams elements are the
-  # offense params of each team, and the next num_teams elements are the defense
-  # params of each team.
-
   # The initial parameters are initialized randomly.
   offense_params = c(runif(n=num_teams, min=0, max=3))
   defense_params = c(runif(n=num_teams, min=0, max=2))
